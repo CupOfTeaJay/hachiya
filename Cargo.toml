@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+bevy = "0.17.3"
 dylib = "0.0.3"
 glob = "0.3.3"
