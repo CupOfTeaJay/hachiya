@@ -86,9 +86,9 @@ fn load_mods_system(world: &mut World) {
 }
 
 /// TODO: Document.
-pub struct FuyuPlugin;
+pub struct HachiyaPlugin;
 
-impl Plugin for FuyuPlugin {
+impl Plugin for HachiyaPlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<LoadMods>();
         app.add_systems(Update, load_mods_system);

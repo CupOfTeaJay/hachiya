@@ -1,12 +1,12 @@
 //! Using bevy example ui/button.rs as POC for the moment.
 
 use bevy::{color::palettes::basic::*, input_focus::InputFocus, prelude::*};
-use fuyu::{FuyuPlugin, LoadMods};
+use hachiya::{HachiyaPlugin, LoadMods};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(FuyuPlugin)
+        .add_plugins(HachiyaPlugin)
         // `InputFocus` must be set for accessibility to recognize the button.
         .init_resource::<InputFocus>()
         .add_systems(Startup, setup)
