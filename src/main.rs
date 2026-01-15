@@ -1,6 +1,6 @@
-use hachiya::cargo::{Manifest, get_manifest};
+use hachiya::ModRepository;
 
 fn main() {
-    let manifest: Manifest = get_manifest("examples/mods");
-    println!("{:#?}", manifest);
+    let repository: ModRepository = ModRepository::new(".");
+    println!("{:#?}", repository);
 }
