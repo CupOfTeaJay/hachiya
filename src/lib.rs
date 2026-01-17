@@ -3,10 +3,11 @@
 use std::path::Path;
 use std::process::{Command, Output};
 
+use bevy::ecs::system::SystemState;
 use bevy::prelude::*;
 use camino::Utf8PathBuf;
 use cargo_metadata::MetadataCommand;
-use cargo_metadata::{Metadata, Package, PackageName};
+use cargo_metadata::{Metadata, Package};
 
 /// TODO: Document.
 struct Mod {
@@ -17,17 +18,13 @@ struct Mod {
 impl Mod {
     /// TODO: Document.
     pub fn build(&self) -> Output {
+        debug!("building {}", self.package.name);
         Command::new("cargo")
             .arg("build")
             .arg("--manifest-path")
             .arg(&self.package.manifest_path)
             .output()
             .expect("failed to execute cargo build")
-    }
-
-    /// TODO: Document.
-    pub fn name(&self) -> &PackageName {
-        &self.package.name
     }
 
     /// TODO: Document.
@@ -67,30 +64,45 @@ impl ModWorkspace {
 #[derive(Resource)]
 struct ModRepository {
     /// TODO: Document.
+    root: Utf8PathBuf,
+
+    /// TODO: Document.
     workspace: ModWorkspace,
 }
 
 impl ModRepository {
     /// TODO: Document.
-    pub fn mods(&self) -> Vec<Mod> {
-        self.workspace.mods()
+    fn compile(&self) {
+        for _mod in self.workspace.mods() {
+            _mod.build();
+        }
+    }
+
+    /// TODO: Document.
+    pub fn load(&self) {
+        debug!("loading {}", self.root);
+        self.compile();
     }
 
     /// TODO: Document.
     pub fn new(root: Utf8PathBuf) -> Self {
         ModRepository {
+            root: root.clone(),
             workspace: ModWorkspace::new(root.join("src")),
         }
     }
 }
 
+/// TODO: Document.
 fn load_mods(world: &mut World) {
-    world.resource_scope(|_world: &mut World, repository: Mut<ModRepository>| {
-        for _mod in repository.mods() {
-            let output = _mod.build();
-            println!("built mod {} with {}", _mod.name(), output.status);
-        }
-    });
+    let messages: usize = SystemState::<MessageReader<LoadMods>>::new(world)
+        .get(world)
+        .read()
+        .count();
+    for _ in 0..messages {
+        world
+            .resource_scope(|_world: &mut World, repository: Mut<ModRepository>| repository.load());
+    }
 }
 
 /// TODO: Document.
@@ -103,7 +115,7 @@ impl HachiyaPlugin {
     /// TODO: Document.
     pub fn new<P: AsRef<Path>>(root: P) -> Self {
         HachiyaPlugin {
-            root: Utf8PathBuf::from_path_buf(root.as_ref().to_path_buf())
+            root: Utf8PathBuf::from_path_buf(root.as_ref().canonicalize().unwrap())
                 .expect("path must be valid UTF-8"),
         }
     }
@@ -112,10 +124,11 @@ impl HachiyaPlugin {
 impl Plugin for HachiyaPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(ModRepository::new(self.root.clone()))
-            .add_systems(Startup, load_mods);
+            .add_message::<LoadMods>()
+            .add_systems(Update, load_mods);
     }
 }
 
-// /// TODO: Document.
-// #[derive(Event)]
-// pub struct LoadModsEvent;
+/// TODO: Document.
+#[derive(Message)]
+pub struct LoadMods;
