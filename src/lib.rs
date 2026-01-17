@@ -1,5 +1,6 @@
 //! TODO: Document.
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::process::{Command, Output};
 
@@ -7,9 +8,11 @@ use bevy::ecs::system::SystemState;
 use bevy::prelude::*;
 use camino::Utf8PathBuf;
 use cargo_metadata::MetadataCommand;
-use cargo_metadata::{Metadata, Package};
+use cargo_metadata::{Metadata, Package, PackageName};
+use dylib::DynamicLibrary;
 
 /// TODO: Document.
+#[derive(Clone, Eq, Hash, PartialEq)]
 struct Mod {
     /// TODO: Document.
     package: Package,
@@ -18,13 +21,29 @@ struct Mod {
 impl Mod {
     /// TODO: Document.
     pub fn build(&self) -> Output {
-        debug!("building {}", self.package.name);
+        debug!("building {}", self.name());
         Command::new("cargo")
             .arg("build")
             .arg("--manifest-path")
             .arg(&self.package.manifest_path)
             .output()
             .expect("failed to execute cargo build")
+    }
+
+    /// TODO: Document.
+    pub fn debug(&self) -> Utf8PathBuf {
+        self.package
+            .manifest_path
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join(format!("target/debug/lib{}.so", self.name()))
+    }
+
+    /// TODO: Document.
+    pub fn name(&self) -> &PackageName {
+        &self.package.name
     }
 
     /// TODO: Document.
@@ -64,6 +83,9 @@ impl ModWorkspace {
 #[derive(Resource)]
 struct ModRepository {
     /// TODO: Document.
+    registry: HashMap<PackageName, DynamicLibrary>,
+
+    /// TODO: Document.
     root: Utf8PathBuf,
 
     /// TODO: Document.
@@ -72,26 +94,37 @@ struct ModRepository {
 
 impl ModRepository {
     /// TODO: Document.
-    fn compile(&self) {
-        for _mod in self.workspace.mods() {
-            _mod.build();
-        }
-    }
-
-    /// TODO: Document.
-    pub fn load(&self) {
+    pub fn load(&mut self) {
         debug!("loading {}", self.root);
-        self.compile();
+        let mut mods: HashMap<Mod, Output> = HashMap::new();
+        for _mod in self.workspace.mods() {
+            mods.insert(_mod.clone(), _mod.build());
+        }
+        for (_mod, output) in mods.iter() {
+            if output.status.success() {
+                debug!("registering {}", _mod.name());
+                self.registry.insert(
+                    _mod.name().clone(),
+                    DynamicLibrary::open(Some(_mod.debug().as_ref()))
+                        .expect("failed to open dylib"),
+                );
+            }
+        }
     }
 
     /// TODO: Document.
     pub fn new(root: Utf8PathBuf) -> Self {
         ModRepository {
+            registry: HashMap::new(),
             root: root.clone(),
             workspace: ModWorkspace::new(root.join("src")),
         }
     }
 }
+
+/// TODO: Justifications.
+unsafe impl Send for ModRepository {}
+unsafe impl Sync for ModRepository {}
 
 /// TODO: Document.
 fn load_mods(world: &mut World) {
@@ -100,8 +133,9 @@ fn load_mods(world: &mut World) {
         .read()
         .count();
     for _ in 0..messages {
-        world
-            .resource_scope(|_world: &mut World, repository: Mut<ModRepository>| repository.load());
+        world.resource_scope(|_world: &mut World, mut repository: Mut<ModRepository>| {
+            repository.load()
+        });
     }
 }
 
