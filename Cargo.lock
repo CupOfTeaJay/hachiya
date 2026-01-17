@@ -2611,6 +2611,7 @@ name = "hachiya"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "camino",
  "cargo_metadata",
  "dylib",
  "glob",
