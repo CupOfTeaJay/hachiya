@@ -52,15 +52,21 @@ fn setup(mut commands: Commands) {
     let button: Entity = commands
         .spawn(button())
         .observe(load)
-        .observe(|this: On<Pointer<Press>>, mut query: Query<&mut BackgroundColor>| {
-            *query.get_mut(this.entity).unwrap() = PRESSED_BUTTON.into();
-        })
-        .observe(|this: On<Pointer<Over>>, mut query: Query<&mut BackgroundColor>| {
-            *query.get_mut(this.entity).unwrap() = HOVERED_BUTTON.into();
-        })
-        .observe(|this: On<Pointer<Out>>, mut query: Query<&mut BackgroundColor>| {
-            *query.get_mut(this.entity).unwrap() = NORMAL_BUTTON.into();
-        })
+        .observe(
+            |this: On<Pointer<Press>>, mut query: Query<&mut BackgroundColor>| {
+                *query.get_mut(this.entity).unwrap() = PRESSED_BUTTON.into();
+            },
+        )
+        .observe(
+            |this: On<Pointer<Over>>, mut query: Query<&mut BackgroundColor>| {
+                *query.get_mut(this.entity).unwrap() = HOVERED_BUTTON.into();
+            },
+        )
+        .observe(
+            |this: On<Pointer<Out>>, mut query: Query<&mut BackgroundColor>| {
+                *query.get_mut(this.entity).unwrap() = NORMAL_BUTTON.into();
+            },
+        )
         .id();
     commands.spawn(root()).add_child(button);
 }
