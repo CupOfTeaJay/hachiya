@@ -54,8 +54,8 @@ fn resolve() -> Result<Utf8PathBuf, HachiyaError> {
     Ok(root)
 }
 
-/// Initializes Hachiya during the [Startup](bevy::app::Startup) schedule
-/// according to the [HachiyaPlugin] configuration.
+/// Initializes Hachiya during the [`Startup`](bevy::app::Startup) schedule
+/// according to the [`HachiyaPlugin`] configuration.
 fn initialize(commands: &mut Commands, plugin: &HachiyaPlugin) -> Result<(), HachiyaError> {
     // Try to determine where the `ModRepository` should be located.
     let root: Utf8PathBuf;
@@ -74,8 +74,8 @@ fn initialize(commands: &mut Commands, plugin: &HachiyaPlugin) -> Result<(), Hac
     Ok(())
 }
 
-/// The configuration for Hachiya. This should be added as a plugin to the
-/// "core" Bevy application.
+/// Hachiya's configuration. This should be added as a plugin to the main Bevy
+/// application.
 ///
 /// # Examples
 ///
@@ -94,9 +94,9 @@ pub struct HachiyaPlugin {
 }
 
 impl Default for HachiyaPlugin {
-    /// Standard configuration for the [HachiyaPlugin]. By default, Hachiya
-    /// assumes the [ModRepository] is located alongside the rest of the game's
-    /// resources under `./assets/mods`.
+    /// Standard configuration for the [`HachiyaPlugin`]. By default, Hachiya
+    /// assumes the [`ModRepository`] is located alongside the rest of the
+    /// game's resources under `./assets/mods`.
     fn default() -> Self {
         HachiyaPlugin { repository: None }
     }
