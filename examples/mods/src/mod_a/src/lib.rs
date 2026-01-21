@@ -3,7 +3,7 @@ use hachiya::Registrar;
 
 #[unsafe(no_mangle)]
 fn main(registrar: &mut Registrar) {
-    registrar.add_systems(Update, hello);
+    registrar.add_systems(PostUpdate, hello);
 }
 
 fn hello() {

@@ -9,7 +9,9 @@ use cargo_metadata::MetadataCommand;
 use cargo_metadata::{Metadata, Package, PackageName};
 use dylib::DynamicLibrary;
 
+use crate::applicator::Applicator;
 use crate::exceptions::HachiyaError;
+use crate::registrar::Registrar;
 
 /// TODO: Document.
 #[derive(Clone, Eq, Hash, PartialEq)]
@@ -83,6 +85,9 @@ impl ModWorkspace {
 #[derive(Resource)]
 pub struct ModRepository {
     /// TODO: Document.
+    applicator: Applicator,
+
+    /// TODO: Document.
     registry: HashMap<PackageName, DynamicLibrary>,
 
     /// TODO: Document.
@@ -94,7 +99,7 @@ pub struct ModRepository {
 
 impl ModRepository {
     /// TODO: Document.
-    pub fn load(&mut self, _world: &mut World) {
+    pub fn load(&mut self, world: &mut World) {
         debug!("loading {}", self.root);
         let mut mods: HashMap<Mod, Output> = HashMap::new();
         for _mod in self.workspace.mods() {
@@ -105,10 +110,10 @@ impl ModRepository {
                 debug!("registering {}", _mod.name());
                 let lib = DynamicLibrary::open(Some(_mod.debug().as_ref()))
                     .expect("failed to open dylib");
-                let hook: fn(&mut crate::Registrar) =
+                let hook: fn(&mut Registrar) =
                     unsafe { std::mem::transmute(lib.symbol::<usize>("main").unwrap()) };
-                let mut registrar = crate::Registrar::new();
-                hook(&mut registrar);
+                hook(self.applicator.registrar());
+                self.applicator.apply(world);
                 self.registry.insert(_mod.name().clone(), lib);
             }
         }
@@ -118,6 +123,7 @@ impl ModRepository {
     pub fn new(root: Utf8PathBuf) -> Result<Self, HachiyaError> {
         if root.is_dir() {
             Ok(ModRepository {
+                applicator: Applicator::new(),
                 registry: HashMap::new(),
                 root: root.clone(),
                 workspace: ModWorkspace::new(root.join("src")),

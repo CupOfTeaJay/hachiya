@@ -1,5 +1,6 @@
 //! TODO: Document.
 
+mod applicator;
 mod exceptions;
 mod plugin;
 mod registrar;
