@@ -106,17 +106,17 @@ impl ModRepository {
             mods.insert(_mod.clone(), _mod.build());
         }
         for (_mod, output) in mods.iter() {
-            if output.status.success() {
+            if output.status.success() && *_mod.name() != "shared" {
                 debug!("registering {}", _mod.name());
                 let lib = DynamicLibrary::open(Some(_mod.debug().as_ref()))
                     .expect("failed to open dylib");
                 let hook: fn(&mut Registrar) =
                     unsafe { std::mem::transmute(lib.symbol::<usize>("main").unwrap()) };
                 hook(self.applicator.registrar());
-                self.applicator.apply(world);
                 self.registry.insert(_mod.name().clone(), lib);
             }
         }
+        self.applicator.apply(world);
     }
 
     /// TODO: Document.

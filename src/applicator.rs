@@ -12,7 +12,7 @@ pub struct Applicator {
 
 impl Applicator {
     /// TODO: Document.
-    fn apply_systems(&mut self, world: &mut World) {
+    fn add_systems(&mut self, world: &mut World) -> &mut Self {
         world.resource_scope(|_world: &mut World, mut schedules: Mut<Schedules>| {
             for (label, systems) in self.registrar.drain_systems() {
                 if let Some(schedule) = schedules.get_mut(label) {
@@ -20,11 +20,20 @@ impl Applicator {
                 }
             }
         });
+        self
+    }
+
+    /// TODO: Document.
+    fn register_components(&mut self, world: &mut World) -> &mut Self {
+        for component in self.registrar.drain_components() {
+            world.register_component_with_descriptor(component);
+        }
+        self
     }
 
     /// TODO: Document.
     pub fn apply(&mut self, world: &mut World) {
-        self.apply_systems(world);
+        self.register_components(world).add_systems(world);
     }
 
     /// TODO: Document.

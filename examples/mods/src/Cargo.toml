@@ -2,10 +2,12 @@
 members = [
     "./mod_a",
     "./mod_b",
+    "./shared",
 ]
 resolver = "3"
 
 [workspace.dependencies]
 bevy = "0.18"
 hachiya = { path = "../../../" }
+shared = { path = "./shared" }
 
