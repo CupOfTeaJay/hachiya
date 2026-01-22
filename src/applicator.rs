@@ -32,8 +32,18 @@ impl Applicator {
     }
 
     /// TODO: Document.
+    fn register_resources(&mut self, world: &mut World) -> &mut Self {
+        for resource in self.registrar.drain_resources() {
+            world.register_resource_with_descriptor(resource);
+        }
+        self
+    }
+
+    /// TODO: Document.
     pub fn apply(&mut self, world: &mut World) {
-        self.register_components(world).add_systems(world);
+        self.register_resources(world)
+            .register_components(world)
+            .add_systems(world);
     }
 
     /// TODO: Document.

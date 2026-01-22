@@ -19,6 +19,9 @@ pub struct Registrar {
     components: Vec<ComponentDescriptor>,
 
     /// TODO: Document.
+    resources: Vec<ComponentDescriptor>,
+
+    /// TODO: Document.
     systems: Vec<SystemPair>,
 }
 
@@ -40,6 +43,11 @@ impl Registrar {
     }
 
     /// TODO: Document.
+    pub fn drain_resources(&mut self) -> Drain<'_, ComponentDescriptor> {
+        self.resources.drain(..)
+    }
+
+    /// TODO: Document.
     pub fn drain_systems(&mut self) -> Drain<'_, SystemPair> {
         self.systems.drain(..)
     }
@@ -48,13 +56,23 @@ impl Registrar {
     pub fn new() -> Self {
         Registrar {
             components: Vec::new(),
+            resources: Vec::new(),
             systems: Vec::new(),
         }
     }
 
-    /// TODO: Document.
-    pub fn register_component<C: Component>(&mut self) {
+    /// Registers a new [`Component`](bevy::ecs::component::Component) type with
+    /// the [`World`](bevy::ecs::prelude::World) owned by the main application.
+    pub fn register_component<C: Component>(&mut self) -> &mut Self {
         self.components.push(ComponentDescriptor::new::<C>());
+        self
+    }
+
+    /// Registers a new [`Resource`](bevy::ecs::prelude::Resource) type with the
+    /// [`World`](bevy::ecs::prelude::World) owned by the main application.
+    pub fn register_resource<R: Resource + Component>(&mut self) -> &mut Self {
+        self.resources.push(ComponentDescriptor::new::<R>());
+        self
     }
 }
 
