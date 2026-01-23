@@ -14,7 +14,7 @@ impl Applicator {
     /// TODO: Document.
     fn add_systems(&mut self, world: &mut World) -> &mut Self {
         world.resource_scope(|_world: &mut World, mut schedules: Mut<Schedules>| {
-            for (name, systems) in self.registrar.drain_systems() {
+            for (name, systems) in self.registrar.systems() {
                 if let Some(schedule) = schedules.get_mut(systems.0) {
                     println!("Scheduling {}", name);
                     schedule.add_systems(systems.1);
@@ -26,7 +26,7 @@ impl Applicator {
 
     /// TODO: Document.
     fn register_components(&mut self, world: &mut World) -> &mut Self {
-        for component in self.registrar.drain_components() {
+        for component in self.registrar.components() {
             world.register_component_with_descriptor(component);
         }
         self
@@ -34,7 +34,7 @@ impl Applicator {
 
     /// TODO: Document.
     fn register_resources(&mut self, world: &mut World) -> &mut Self {
-        for resource in self.registrar.drain_resources() {
+        for resource in self.registrar.resources() {
             world.register_resource_with_descriptor(resource);
         }
         self
