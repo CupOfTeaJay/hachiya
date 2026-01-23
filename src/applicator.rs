@@ -14,9 +14,10 @@ impl Applicator {
     /// TODO: Document.
     fn add_systems(&mut self, world: &mut World) -> &mut Self {
         world.resource_scope(|_world: &mut World, mut schedules: Mut<Schedules>| {
-            for (label, systems) in self.registrar.drain_systems() {
-                if let Some(schedule) = schedules.get_mut(label) {
-                    schedule.add_systems(systems);
+            for (name, systems) in self.registrar.drain_systems() {
+                if let Some(schedule) = schedules.get_mut(systems.0) {
+                    println!("Scheduling {}", name);
+                    schedule.add_systems(systems.1);
                 }
             }
         });
