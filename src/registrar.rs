@@ -14,32 +14,88 @@ use bevy::prelude::*;
 type SystemPair = (Interned<dyn ScheduleLabel>, ScheduleConfigs<ScheduleSystem>);
 
 /// TODO: Document.
+#[derive(Debug)]
 enum SystemsName {
     Monomorph(String),
     Polymorph(Vec<SystemsName>),
 }
 
 impl SystemsName {
+    /// Gets
+    pub fn members(&self) -> Vec<String> {
+        match self {
+            SystemsName::Monomorph(name) => vec![name.clone()],
+            SystemsName::Polymorph(name) => {
+                let mut members = Vec::new();
+                for subname in name {
+                    members.extend(subname.members());
+                }
+                members
+            }
+        }
+    }
+
     /// Generates names for a given system or set of systems. If a set of
     /// systems is passed, then a name will be derived for each one. The names
-    /// are used to uniquely identify and reference individual registrations.
+    /// are used to uniquely identify and reference system registrations on
+    /// an individual basis.
     pub fn new(tokens: &str) -> Self {
-        if tokens.starts_with('(') {
+        if tokens.starts_with('(') && tokens.ends_with(')') {
+            let mut depth: usize = 0;
             let mut curr: String = String::new();
             let mut subs: Vec<SystemsName> = Vec::new();
-            for char in tokens.chars().skip(1) {
+            for char in tokens[1..(tokens.len() - 1)].chars() {
                 match char {
-                    ')' => {
+                    '(' => {
+                        depth += 1;
                         curr.push(char);
-                        subs.push(SystemsName::new(&curr));
-                        curr.clear();
+                    }
+                    ')' => {
+                        depth -= 1;
+                        curr.push(char);
+                    }
+                    ',' => {
+                        if depth == 0 {
+                            subs.push(SystemsName::new(&curr));
+                            curr.clear();
+                        } else {
+                            curr.push(char);
+                        }
                     }
                     _ => curr.push(char),
                 }
             }
+            subs.push(SystemsName::new(&curr));
             SystemsName::Polymorph(subs)
         } else {
             SystemsName::Monomorph(tokens.to_string())
+        }
+    }
+}
+
+/// TODO: Document.
+struct Context {
+    /// TODO: Document.
+    conditions: Vec<BoxedCondition>,
+
+    /// TODO: Document.
+    members: Vec<String>,
+
+    /// TODO: Document.
+    metadata: <ScheduleSystem as Schedulable>::GroupMetadata,
+}
+
+impl Context {
+    /// TODO: Document.
+    pub fn new(
+        conditions: Vec<BoxedCondition>,
+        members: Vec<String>,
+        metadata: <ScheduleSystem as Schedulable>::GroupMetadata,
+    ) -> Self {
+        Context {
+            conditions,
+            members,
+            metadata,
         }
     }
 }
@@ -50,6 +106,9 @@ pub struct Registrar {
     components: Vec<ComponentDescriptor>,
 
     /// TODO: Document.
+    contexts: Vec<Context>,
+
+    /// TODO: Document.
     resources: Vec<ComponentDescriptor>,
 
     /// TODO: Document.
@@ -58,12 +117,40 @@ pub struct Registrar {
 
 impl Registrar {
     /// TODO: Document.
-    fn recurse_system_set<T: Schedulable>(
-        &self,
-        configs: &Vec<ScheduleConfigs<T>>,
-        collective_conditions: &Vec<BoxedCondition>,
-        metadata: &T::GroupMetadata,
+    fn recurse_system_set(
+        &mut self,
+        name: &SystemsName,
+        schedule: Interned<dyn ScheduleLabel>,
+        configs: ScheduleConfigs<ScheduleSystem>,
     ) {
+        match configs {
+            ScheduleConfigs::ScheduleConfig(configs) => {
+                if let SystemsName::Monomorph(name) = name {
+                    self.systems.insert(
+                        name.clone(),
+                        (schedule, ScheduleConfigs::ScheduleConfig(configs)),
+                    );
+                } else {
+                    // This should never happen.
+                }
+            }
+            ScheduleConfigs::Configs {
+                configs,
+                collective_conditions,
+                metadata,
+            } => {
+                let members: Vec<String> = name.members();
+                if let SystemsName::Polymorph(name) = name {
+                    self.contexts
+                        .push(Context::new(collective_conditions, members, metadata));
+                    for (subname, config) in name.iter().zip(configs.into_iter()) {
+                        self.recurse_system_set(subname, schedule, config);
+                    }
+                } else {
+                    // This should never happen.
+                }
+            }
+        }
     }
 
     /// TODO: Document.
@@ -72,23 +159,11 @@ impl Registrar {
         schedule: impl ScheduleLabel,
         systems: S,
     ) -> &mut Self {
-        let name: SystemsName =
-            SystemsName::new(&std::any::type_name::<S>().replace(' ', ""));
-        match systems.into_configs() {
-            ScheduleConfigs::ScheduleConfig(config) => {
-                if let SystemsName::Monomorph(name) = name {
-                    self.systems.insert(
-                        name.clone(),
-                        (schedule.intern(), ScheduleConfigs::ScheduleConfig(config)),
-                    );
-                }
-            }
-            ScheduleConfigs::Configs {
-                configs,
-                collective_conditions,
-                metadata,
-            } => self.recurse_system_set(&configs, &collective_conditions, &metadata),
-        }
+        self.recurse_system_set(
+            &SystemsName::new(&std::any::type_name::<S>().replace(' ', "")),
+            schedule.intern(),
+            systems.into_configs(),
+        );
         self
     }
 
@@ -111,6 +186,7 @@ impl Registrar {
     pub fn new() -> Self {
         Registrar {
             components: Vec::new(),
+            contexts: Vec::new(),
             resources: Vec::new(),
             systems: HashMap::new(),
         }
