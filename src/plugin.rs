@@ -8,15 +8,22 @@ use crate::exceptions::HachiyaError;
 use crate::repository::ModRepository;
 
 /// TODO: Document.
-fn load_mods(world: &mut World) {
-    let mut state: SystemState<MessageMutator<LoadMods>> = SystemState::new(world);
-    let mut messages: MessageMutator<LoadMods> = state.get_mut(world);
+fn load_mods(world: &mut World, state: &mut SystemState<MessageMutator<LoadMods>>) {
+    let mut messages = state.get_mut(world);
     if !messages.is_empty() {
         messages.clear();
         world.resource_scope(|world: &mut World, mut repository: Mut<ModRepository>| {
-            repository.load(world)
+            if let Err(err) = repository.load_all(world) {
+                error!("{}", err);
+            }
         });
     }
+    state.apply(world);
+}
+
+/// TODO: Document.
+fn poll(mut repository: ResMut<ModRepository>) {
+    repository.poll();
 }
 
 /// TODO: Document.
@@ -107,7 +114,13 @@ impl Plugin for HachiyaPlugin {
                 Ok(initialize(&mut commands, &plugin)?)
             }
         })
-        .add_systems(Update, load_mods)
+        .add_systems(Update, ({
+            let mut state: Option<SystemState<MessageMutator<LoadMods>>> = None;
+            move |world: &mut World| {
+                let state = state.get_or_insert_with(|| SystemState::new(world));
+                load_mods(world, state);
+            }
+        }, poll))
         .add_message::<LoadMods>();
     }
 }

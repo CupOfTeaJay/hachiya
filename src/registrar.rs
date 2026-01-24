@@ -129,7 +129,7 @@ impl Registrar {
     ///
     /// Names in this context are just strings resolved by crate, module, and
     /// function. For example, a system named `my_system` in the `systems`
-    /// module under the `my_game` crate would have a name of 
+    /// module under the `my_game` crate would have a name of
     /// `my_game::systems::my_system`.
     ///
     /// This can be useful for determining valid targets that can be passed into
