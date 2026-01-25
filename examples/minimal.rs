@@ -2,7 +2,7 @@
 
 use bevy::log::LogPlugin;
 use bevy::prelude::*;
-use hachiya::{BuildTarget, HachiyaPlugin, RepositoryRequest, RepositoryService};
+use hachiya::HachiyaPlugin;
 
 // Taken from `bevy/examples/ui/tab_navigation.rs`.
 const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
@@ -32,10 +32,8 @@ fn button() -> impl Bundle {
 }
 
 /// TODO: Document.
-fn load(_this: On<Pointer<Release>>, mut commands: Commands) {
-    commands.write_message(RepositoryRequest(RepositoryService::LoadRepository(
-        BuildTarget::Debug,
-    )));
+fn load(_this: On<Pointer<Release>>, mut _commands: Commands) {
+    println!("implement `load`");
 }
 
 fn repository() -> String {
@@ -90,7 +88,8 @@ fn main() {
                 ..default()
             }),
             HachiyaPlugin {
-                repository: Some(repository()),
+                repository_path: Some(repository()),
+                ..default()
             },
         ))
         .add_systems(Startup, setup)

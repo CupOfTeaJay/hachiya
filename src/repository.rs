@@ -14,13 +14,6 @@ use crate::exceptions::HachiyaError;
 use crate::registrar::Registrar;
 
 /// TODO: Document.
-enum BuildState {
-    Building(std::process::Child),
-    Built,
-    Unbuilt,
-}
-
-/// TODO: Document.
 struct Mod {
     /// TODO: Document.
     hook: Option<fn(&mut Registrar)>,
@@ -108,6 +101,13 @@ impl Mod {
 }
 
 /// TODO: Document.
+pub enum BuildState {
+    Building(std::process::Child),
+    Built,
+    Unbuilt,
+}
+
+/// TODO: Document.
 #[derive(Clone, Debug)]
 pub enum BuildTarget {
     Debug,
@@ -116,7 +116,7 @@ pub enum BuildTarget {
 
 /// TODO: Document.
 #[derive(Resource)]
-pub struct ModRepository {
+pub struct Repository {
     /// TODO: Document.
     _applicator: Applicator,
 
@@ -136,7 +136,100 @@ pub struct ModRepository {
     state: BuildState,
 }
 
-impl ModRepository {
+impl Repository {
+    /// Determines what the expected shared-library extension should be
+    /// according to the host operating-system.
+    ///
+    /// If the OS is not `macos`, `windows`, or `linux`, then just assume an
+    /// extension of `.so`.
+    fn determine_dylib_extension() -> String {
+        let extension: &str = match std::env::consts::OS {
+            "macos" => ".dylib",
+            "windows" => ".dll",
+            "linux" => ".so",
+            _ => {
+                warn!("unknown OS: {}", std::env::consts::OS);
+                ".so"
+            }
+        };
+        info!(
+            "expecting '{}' shared-library extensions for OS: {}",
+            extension,
+            std::env::consts::OS
+        );
+        extension.to_string()
+    }
+
+    /// Determines what the root directory of this [`Repository`] should be
+    /// according to the current execution environment.
+    ///
+    /// This only runs if the user did not designate a custom path. If a path
+    /// was specified, then there are two possible fallbacks:
+    ///   1. If the `CARGO_MANIFEST_DIR` environment variable is set, then
+    ///      assume a development context and look for a repository adjacent to
+    ///      the project's `Cargo.toml` under a `mods/` directory
+    ///   2. Otherwise, assume a deployment context and expect the repository
+    ///      to be located alongside the executable under a `mods/` directory
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`HachiyaError::InitializationError`] if the root is being
+    /// resolved via the executable, and if:
+    ///   * The executable's path cannot be determined
+    ///   * Or the executable's parent directory could not be determined
+    fn resolve_root() -> Result<Utf8PathBuf, HachiyaError> {
+        let mut root: Utf8PathBuf;
+        if let Ok(dir) = std::env::var("CARGO_MANIFEST_DIR") {
+            info!("resolving path to repository via CARGO_MANIFEST_DIR");
+            root = Utf8PathBuf::from(dir);
+        } else {
+            info!("resolving path to repository via std::env::current_exe()");
+            match std::env::current_exe() {
+                Ok(exe) => {
+                    if let Some(parent) = exe.parent() {
+                        root = Utf8PathBuf::from(parent.to_string_lossy().into_owned());
+                    } else {
+                        return Err(HachiyaError::InitializationError(format!(
+                            "repository could not be resolved from executable: {} has no parent",
+                            exe.display()
+                        )));
+                    }
+                }
+                Err(err) => {
+                    return Err(HachiyaError::InitializationError(format!(
+                        "repository path could not be resolved from executable: {}",
+                        err
+                    )));
+                }
+            }
+        }
+        root.push("assets");
+        root.push("mods");
+        Ok(root)
+    }
+
+    /// Validates the
+    /// [`HachiyaPlugin::repository`](crate::HachiyaPlugin::repository) field,
+    /// if one was supplied by the user.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`HachiyaError::InitializationError`] if:
+    ///   * The given `root` does not exist
+    ///   * Or the given `root` is not a directory
+    fn validate_user_root(root: &String) -> Result<Utf8PathBuf, HachiyaError> {
+        info!("resolving path to repository via user-designated root");
+        let root: Utf8PathBuf = Utf8PathBuf::from(root);
+        if root.is_dir() {
+            Ok(root)
+        } else {
+            Err(HachiyaError::InitializationError(format!(
+                "designated repository path is not a valid directory: {}",
+                root
+            )))
+        }
+    }
+
     /// Builds the entire workspace asynchronously.
     pub fn build(&mut self) -> Result<(), HachiyaError> {
         info!("building repository");
@@ -216,43 +309,67 @@ impl ModRepository {
     }
 
     /// TODO: Document.
-    pub fn new(root: Utf8PathBuf) -> Result<Self, HachiyaError> {
-        if root.is_dir() {
-            let extension: &str = match std::env::consts::OS {
-                "macos" => ".dylib",
-                "windows" => ".dll",
-                "linux" => ".so",
-                _ => {
-                    warn!(
-                        "assuming a dylib extension of '.so' for unknown OS: {}",
-                        std::env::consts::OS
-                    );
-                    ".so"
-                }
-            };
-            let mut repository: ModRepository = ModRepository {
-                _applicator: Applicator::new(),
-                extension: extension.to_string(),
-                members: HashMap::new(),
-                metadata: None,
-                root,
-                state: BuildState::Unbuilt,
-            };
-            if let Err(err) = repository.index() {
-                Err(HachiyaError::InitializationError(err.to_string()))
+    pub fn new(root: &Option<String>) -> Result<Self, HachiyaError> {
+        let mut repository: Repository = Repository {
+            _applicator: Applicator::new(),
+            extension: Repository::determine_dylib_extension(),
+            members: HashMap::new(),
+            metadata: None,
+            root: if let Some(user_root) = root {
+                Repository::validate_user_root(user_root)?
             } else {
-                Ok(repository)
-            }
+                Repository::resolve_root()?
+            },
+            state: BuildState::Unbuilt,
+        };
+        if let Err(err) = repository.index() {
+            Err(HachiyaError::InitializationError(err.to_string()))
         } else {
-            Err(HachiyaError::InitializationError(format!(
-                "repository path is not a valid directory: {}",
-                root
-            )))
+            Ok(repository)
         }
     }
 
-    /// TODO: Document.
-    pub fn poll(&mut self) {
+    /// Gets a reference to the [`BuildState`] of this [`Repository`].
+    ///
+    /// This may be used to get a read-only handle of the underlying build
+    /// process, if one is in-progress.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bevy::prelude::*;
+    /// use hachiya::{BuildState, Repository};
+    ///
+    /// // Fetches the mod repository and checks it's build state.
+    /// fn check_build_state(repository: Res<Repository>) {
+    ///     match repository.state() {
+    ///         BuildState::Unbuilt => println!("the repository is not built"),
+    ///         BuildState::Building(process) => {
+    ///             let pid: u32 = process.id();
+    ///             println!("process {} is building the repository", pid);
+    ///         },
+    ///         BuildState::Built => println!("the repository is built")
+    ///     }
+    /// }
+    ///
+    /// ```
+    pub fn state(&self) -> &BuildState {
+        &self.state
+    }
+
+    /// Transitions this [`Repository`] to a new [`BuildState`], depending on
+    /// the outcome of the previous build.
+    ///
+    /// If all of the underlying workspace members compiled successfully then
+    /// this repository will be considered [`BuildState::Built`], and may
+    /// therefore load mods. If a build process was unsuccessful, or if one was
+    /// never started, then the repository will be in the
+    /// [`BuildState::Unbuilt`] state.
+    ///
+    /// By default, the [`crate::HachiyaPlugin`] schedule's a helper system in
+    /// Bevy's `Update` schedule that continuously call's this method, so it is
+    /// unlikely one would ever want to invoke it manually.
+    pub fn update(&mut self) {
         if let BuildState::Building(handle) = &mut self.state {
             match handle.try_wait() {
                 Ok(Some(status)) => {
@@ -275,5 +392,5 @@ impl ModRepository {
 }
 
 /// TODO: Justifications.
-unsafe impl Send for ModRepository {}
-unsafe impl Sync for ModRepository {}
+unsafe impl Send for Repository {}
+unsafe impl Sync for Repository {}

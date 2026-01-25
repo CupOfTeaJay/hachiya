@@ -1,156 +1,111 @@
 //! TODO: Document.
 
-use bevy::ecs::system::SystemState;
+use bevy::ecs::{intern::Interned, schedule::ScheduleLabel};
 use bevy::prelude::*;
-use camino::Utf8PathBuf;
 
-use crate::exceptions::HachiyaError;
-use crate::repository::ModRepository;
-use crate::services::{RepositoryRequest, RepositoryService};
+use crate::repository::Repository;
 
-/// TODO: Document.
-fn service(world: &mut World, state: &mut SystemState<MessageMutator<RepositoryRequest>>) {
-    world.resource_scope(|world: &mut World, mut repository: Mut<ModRepository>| {
-        let mut messages: MessageMutator<RepositoryRequest> = state.get_mut(world);
-        let requests: Vec<RepositoryRequest> = messages.read().map(|r| r.clone()).collect();
-        for request in requests {
-            match request.0 {
-                RepositoryService::BuildMod(_name, target) => {
-                    // TODO: Handle BuildMod
-                    warn!("BuildMod not yet implemented: {:?}", target);
-                }
-                RepositoryService::BuildRepository(_target) => {
-                    if let Err(err) = repository.build() {
-                        error!("{}", err);
-                    }
-                }
-                RepositoryService::LoadMod(_name, target) => {
-                    // TODO: Handle LoadMod
-                    warn!("LoadMod not yet implemented: {:?}", target);
-                }
-                RepositoryService::LoadRepository(_target) => {
-                    if let Err(err) = repository.load_all(world) {
-                        error!("{}", err);
-                    }
-                }
-                RepositoryService::UnloadMod(name) => {
-                    // TODO: Handle UnloadMod
-                    warn!("UnloadMod not yet implemented: {}", name);
-                }
-                RepositoryService::UnloadRepository => {
-                    // TODO: Handle UnloadRepository
-                    warn!("UnloadRepository not yet implemented");
-                }
-            }
+/// Helper system for calling [`Repository::update`].
+fn poll(mut repository: ResMut<Repository>) {
+    repository.update();
+}
+
+/// Initializes Hachiya during Bevy's `Startup` schedule according to the
+/// [`HachiyaPlugin`] configuration.
+///
+/// At the moment, initialization simply entails the construction and insertion
+/// of a [`Repository`] resource into the main application.
+fn initialize(commands: &mut Commands, plugin: &HachiyaPlugin) {
+    match Repository::new(&plugin.repository_path) {
+        Ok(repository) => {
+            commands.insert_resource(repository);
+            info!("initialization successful");
         }
-    });
-    state.apply(world);
-}
-
-/// TODO: Document.
-fn poll(mut repository: ResMut<ModRepository>) {
-    repository.poll();
-}
-
-/// TODO: Document.
-fn resolve() -> Result<Utf8PathBuf, HachiyaError> {
-    let mut root: Utf8PathBuf;
-    if let Ok(dir) = std::env::var("CARGO_MANIFEST_DIR") {
-        debug!("resolving path to `ModRepository` via CARGO_MANIFEST_DIR");
-        root = Utf8PathBuf::from(dir);
-    } else {
-        debug!("resolving path to `ModRepository` via std::env::current_exe()");
-        match std::env::current_exe() {
-            Ok(exe) => {
-                if let Some(parent) = exe.parent() {
-                    root = Utf8PathBuf::from(parent.to_string_lossy().into_owned());
-                } else {
-                    return Err(HachiyaError::InitializationError(format!(
-                        "repository could not be resolved from executable: {} has no parent",
-                        exe.display()
-                    )));
-                }
-            }
-            Err(err) => {
-                return Err(HachiyaError::InitializationError(format!(
-                    "repository path could not be resolved from executable: {}",
-                    err
-                )));
-            }
-        }
+        Err(err) => error!("initialization unsuccessful; {}", err),
     }
-    root.push("assets");
-    root.push("mods");
-    Ok(root)
-}
-
-/// Initializes Hachiya during the [`Startup`](bevy::app::Startup) schedule
-/// according to the [`HachiyaPlugin`] configuration.
-fn initialize(commands: &mut Commands, plugin: &HachiyaPlugin) -> Result<(), HachiyaError> {
-    // Try to determine where the `ModRepository` should be located.
-    let root: Utf8PathBuf;
-    if let Some(repository) = &plugin.repository {
-        debug!("using user-designated path for `ModRepository`");
-        root = Utf8PathBuf::from(repository);
-    } else {
-        root = resolve()?;
-    }
-
-    // TODO:
-    commands.insert_resource(ModRepository::new(root)?);
-
-    // TODO:
-    info!("initialization successful");
-    Ok(())
 }
 
 /// Hachiya's configuration. This should be added as a plugin to the main Bevy
-/// application.
+/// application in order for everything to work.
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// use bevy::prelude::*;
 /// use hachiya::HachiyaPlugin;
 ///
 /// fn main() {
-///     App::new().add_plugins(HachiyaPlugin::default()).run();
+///     App::new().add_plugins(HachiyaPlugin::default());
 /// }
 /// ```
 #[derive(Clone)]
 pub struct HachiyaPlugin {
-    /// The path of the [ModRepository] to initialize and manage.
-    pub repository: Option<String>,
+    /// The schedule in which the [`Repository`]'s [`crate::BuildState`] is
+    /// polled and updated.
+    ///
+    /// Polling is enabled and performed in Bevy's `Update` schedule by default.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bevy::ecs::{intern::Interned, schedule::ScheduleLabel};
+    /// use bevy::prelude::*;
+    /// use hachiya::HachiyaPlugin;
+    ///
+    /// // Continuously poll the mod repository in the `PostUpdate` schedule.
+    /// let plugin: HachiyaPlugin = HachiyaPlugin {
+    ///     poll_schedule: PostUpdate.intern(),
+    ///     ..default()
+    /// };
+    /// ```
+    pub poll_schedule: Interned<dyn ScheduleLabel>,
+
+    /// The path to the root directory of the mod [`Repository`] manage.
+    ///
+    /// The repository is expected to be under a `mods/` directory. If you are
+    /// in a development context (the `CARGO_MANIFEST_DIR` environment variable
+    /// is set), then it is assumed that this directory will be next to your
+    /// project's `Cargo.toml`. Otherwise, a deployment context is inferred, and
+    /// the directory is assumed to be next to your application's executable.
+    ///
+    /// If you want to specify a custom path, then a custom one may be provided.
+    /// This path will be validated during the Startup schedule.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bevy::prelude::*;
+    /// use hachiya::HachiyaPlugin;
+    ///
+    /// // Interperet the Cargo workspace located under `path/to/some/mods/` as
+    /// // a mod repository.
+    /// let plugin: HachiyaPlugin = HachiyaPlugin {
+    ///     repository_path: Some("path/to/some/mods/".to_string()),
+    ///     ..default()
+    /// };
+    /// ```
+    pub repository_path: Option<String>,
 }
 
 impl Default for HachiyaPlugin {
-    /// Standard configuration for the [`HachiyaPlugin`]. By default, Hachiya
-    /// assumes the [`ModRepository`] is located alongside the rest of the
-    /// game's resources under `./assets/mods`.
+    /// Standard configuration for the [`HachiyaPlugin`].
+    ///
+    /// Use an inferred path for the mod [`Repository`]'s root directory, and
+    /// continuously polls said repository in Bevy's `Update` schedule.
     fn default() -> Self {
-        HachiyaPlugin { repository: None }
+        HachiyaPlugin {
+            poll_schedule: Update.intern(),
+            repository_path: None,
+        }
     }
 }
 
 impl Plugin for HachiyaPlugin {
     fn build(&self, app: &mut App) {
         let plugin: HachiyaPlugin = self.clone();
-        app.add_systems(Startup, {
-            move |mut commands: Commands| -> Result<(), BevyError> {
-                Ok(initialize(&mut commands, &plugin)?)
-            }
-        })
-        .add_systems(
-            Last,
-            (poll, {
-                let mut state: Option<SystemState<MessageMutator<RepositoryRequest>>> = None;
-                move |world: &mut World| {
-                    let state = state.get_or_insert_with(|| SystemState::new(world));
-                    service(world, state);
-                }
-            })
-                .chain(),
-        )
-        .add_message::<RepositoryRequest>();
+        app.add_systems(plugin.poll_schedule, poll);
+        app.add_systems(Startup, move |mut commands: Commands| {
+            initialize(&mut commands, &plugin);
+        });
     }
 }
