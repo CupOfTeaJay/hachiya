@@ -11,6 +11,7 @@ use dylib::DynamicLibrary;
 
 use crate::applicator::Applicator;
 use crate::exceptions::HachiyaError;
+use crate::plugin::HachiyaPlugin;
 use crate::registrar::Registrar;
 
 /// TODO: Document.
@@ -173,10 +174,10 @@ impl Repository {
     ///
     /// # Errors
     ///
-    /// Returns a [`HachiyaError::InitializationError`] if the root is being
-    /// resolved via the executable, and if:
+    /// Returns a [`HachiyaError::InitializationError`] if:
     ///   * The executable's path cannot be determined
     ///   * Or the executable's parent directory could not be determined
+    ///   * Or the predicted repository location is not a valid directory
     fn resolve_root() -> Result<Utf8PathBuf, HachiyaError> {
         let mut root: Utf8PathBuf;
         if let Ok(dir) = std::env::var("CARGO_MANIFEST_DIR") {
@@ -203,9 +204,20 @@ impl Repository {
                 }
             }
         }
-        root.push("assets");
         root.push("mods");
-        Ok(root)
+        if root.is_dir() {
+            Ok(root)
+        } else {
+            Err(HachiyaError::InitializationError(format!(
+                "expected repository path is not a valid directory: {}",
+                root
+            )))
+        }
+    }
+
+    /// TODO: Document.
+    fn _resolve_sdk() {
+        todo!()
     }
 
     /// Validates the
@@ -309,13 +321,13 @@ impl Repository {
     }
 
     /// TODO: Document.
-    pub fn new(root: &Option<String>) -> Result<Self, HachiyaError> {
+    pub fn new(plugin: &HachiyaPlugin) -> Result<Self, HachiyaError> {
         let mut repository: Repository = Repository {
             _applicator: Applicator::new(),
             extension: Repository::determine_dylib_extension(),
             members: HashMap::new(),
             metadata: None,
-            root: if let Some(user_root) = root {
+            root: if let Some(user_root) = &plugin.repository_path {
                 Repository::validate_user_root(user_root)?
             } else {
                 Repository::resolve_root()?
@@ -366,8 +378,8 @@ impl Repository {
     /// never started, then the repository will be in the
     /// [`BuildState::Unbuilt`] state.
     ///
-    /// By default, the [`crate::HachiyaPlugin`] schedule's a helper system in
-    /// Bevy's `Update` schedule that continuously call's this method, so it is
+    /// By default, the [`HachiyaPlugin`] schedule's a helper system in Bevy's
+    /// `Update` schedule that continuously call's this method, so it is
     /// unlikely one would ever want to invoke it manually.
     pub fn update(&mut self) {
         if let BuildState::Building(handle) = &mut self.state {

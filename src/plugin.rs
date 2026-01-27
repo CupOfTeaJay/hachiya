@@ -16,7 +16,7 @@ fn poll(mut repository: ResMut<Repository>) {
 /// At the moment, initialization simply entails the construction and insertion
 /// of a [`Repository`] resource into the main application.
 fn initialize(commands: &mut Commands, plugin: &HachiyaPlugin) {
-    match Repository::new(&plugin.repository_path) {
+    match Repository::new(plugin) {
         Ok(repository) => {
             commands.insert_resource(repository);
             info!("initialization successful");
@@ -62,11 +62,12 @@ pub struct HachiyaPlugin {
 
     /// The path to the root directory of the mod [`Repository`] manage.
     ///
-    /// The repository is expected to be under a `mods/` directory. If you are
-    /// in a development context (the `CARGO_MANIFEST_DIR` environment variable
-    /// is set), then it is assumed that this directory will be next to your
-    /// project's `Cargo.toml`. Otherwise, a deployment context is inferred, and
-    /// the directory is assumed to be next to your application's executable.
+    /// By default, the repository is expected to be under a `mods/` directory.
+    /// If you are in a development context (the `CARGO_MANIFEST_DIR`
+    /// environment variable is set), then it is assumed that this directory
+    /// will be next to your project's `Cargo.toml`. Otherwise, a deployment
+    /// context is inferred, and the directory is assumed to be next to your
+    /// application's executable.
     ///
     /// If you want to specify a custom path, then a custom one may be provided.
     /// This path will be validated during the Startup schedule.
@@ -85,17 +86,43 @@ pub struct HachiyaPlugin {
     /// };
     /// ```
     pub repository_path: Option<String>,
+
+    /// The path to the root directory containing a modding Software Development
+    /// Kit (SDK).
+    ///
+    /// The SDK should contain:
+    ///   * TODO:
+    ///
+    /// By default, the SDK is expected to be in an `sdk/` directory under the
+    /// [`HachiyaPlugin::repository_path`]. You may specify something different
+    /// if you do not want to follow this structure. A custom SDK path will be
+    /// validated during the Startup schedule.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use bevy::prelude::*;
+    /// use hachiya::HachiyaPlugin;
+    ///
+    /// // Look for the modding SDK under the `path/to/the/sdk` directory.
+    /// let plugin: HachiyaPlugin = HachiyaPlugin {
+    ///     sdk_path: Some("path/to/the/sdk/".to_string()),
+    ///     ..default()
+    /// };
+    /// ```
+    pub sdk_path: Option<String>,
 }
 
 impl Default for HachiyaPlugin {
     /// Standard configuration for the [`HachiyaPlugin`].
-    ///
-    /// Use an inferred path for the mod [`Repository`]'s root directory, and
-    /// continuously polls said repository in Bevy's `Update` schedule.
+    ///   * Use an inferred path for the mod [`Repository`]'s root directory.
+    ///   * Look for the SDK under `<repository_path>/sdk/`
+    ///   * Continuously poll the repository in Bevy's `Update` schedule.
     fn default() -> Self {
         HachiyaPlugin {
             poll_schedule: Update.intern(),
             repository_path: None,
+            sdk_path: None,
         }
     }
 }
