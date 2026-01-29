@@ -10,5 +10,6 @@ needless_doctest_main = "allow"
 bevy = "0.18"
 camino = "1.2.2"
 cargo_metadata = "0.23.1"
-dylib = "0.0.3"
+libloading = "0.8"
+stabby = { version = "72.1.1", features = ["libloading"] }
 thiserror = "2.0.17"

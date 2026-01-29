@@ -1,13 +1,13 @@
 use bevy::prelude::*;
-use hachiya::DynamicApp;
+use hachiya::SharedObject;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .init_asset::<DynamicApp>()
-        .init_asset_loader::<DynamicApp>()
+        .init_asset::<SharedObject>()
+        .init_asset_loader::<SharedObject>()
         .add_systems(Startup, |asset_server: Res<AssetServer>| {
-            let foo: Handle<DynamicApp> = asset_server.load("libmod_a.so");
+            let _foo: Handle<SharedObject> = asset_server.load("libmod_a.so");
         })
         .run();
 }
