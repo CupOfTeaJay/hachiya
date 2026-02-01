@@ -5,8 +5,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use bevy::asset::{AssetLoader, LoadContext, io::Reader};
-use bevy::prelude::*;
+use bevy::{
+    asset::{AssetLoader, LoadContext, io::Reader},
+    prelude::*,
+};
 use libloading::Library;
 use stabby::libloading::StabbyLibrary;
 
@@ -14,15 +16,15 @@ use crate::dynapp::DynamicApp;
 use crate::exceptions::HachiyaError;
 
 /// The expected function signature of the entry-point exported by a [`Dylib`].
-type DynamicAppHook = extern "C" fn(stabby::boxed::Box<DynamicApp>);
+type DynamicAppHook = fn(&mut DynamicApp);
 
 #[derive(Asset, Default, TypePath)]
 pub struct Dylib {
     /// The dynamic library's [`DynamicAppHook`] entry-point.
-    _hook: Option<DynamicAppHook>,
+    hook: Option<DynamicAppHook>,
 
     /// The underlying handle of the dynamic library.
-    _library: Option<Library>,
+    library: Option<Library>,
 }
 
 impl Dylib {
@@ -34,7 +36,7 @@ impl Dylib {
     /// * [`HachiyaError::InvalidHook`] if the symbol could not be resolved or
     ///   an ABI mismatch is suspected
     fn get_main(library: &Library) -> Result<DynamicAppHook, HachiyaError> {
-        Ok(*unsafe { library.get_stabbied::<DynamicAppHook>(b"main")? })
+        Ok(*unsafe { library.get_canaried::<DynamicAppHook>(b"main")? })
     }
 
     /// Attempts to load a shared-object from disk via the `libloading` crate.
@@ -61,8 +63,8 @@ impl Dylib {
         let library: Library =
             Self::load_library(&Self::resolve_assets()?.join("assets").join(path))?;
         Ok(Dylib {
-            _hook: Some(Self::get_main(&library)?),
-            _library: Some(library),
+            hook: Some(Self::get_main(&library)?),
+            library: Some(library),
         })
     }
 
@@ -94,6 +96,11 @@ impl Dylib {
             Err(HachiyaError::UnresolvedAssets)
         }
     }
+
+    /// TODO:
+    pub fn hook(&self) -> DynamicAppHook {
+        self.hook.unwrap()
+    }
 }
 
 impl AssetLoader for Dylib {
@@ -107,7 +114,6 @@ impl AssetLoader for Dylib {
         _settings: &(),
         load_context: &mut LoadContext<'_>,
     ) -> Result<Dylib, HachiyaError> {
-        println!("loading .so");
         Dylib::new(load_context.path().path())
     }
 

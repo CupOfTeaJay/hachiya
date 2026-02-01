@@ -1,8 +1,11 @@
 ///! TODO: Document.
-
+use bevy::prelude::*;
 use hachiya::DynamicApp;
 
-#[stabby::export]
-pub extern "C" fn main(_app: stabby::boxed::Box<DynamicApp>) {
-    println!("hello from minimal.so! again!");
+#[derive(Clone, Debug, Eq, Hash, PartialEq, SystemSet)]
+struct Foo;
+
+#[stabby::export(canaries)]
+fn main(app: &mut DynamicApp) {
+    app.add_systems(PostUpdate, Foo, || {println!("Dingleboop!")});
 }
