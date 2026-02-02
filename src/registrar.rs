@@ -41,15 +41,16 @@ impl Registrar {
                             world,
                             ScheduleCleanupPolicy::RemoveSystemsOnly,
                         )
-                        .ok();
+                        .unwrap();
                 }
             }
         });
+        assets.get_mut_untracked(*id).unwrap().refresh();
     }
 
     pub fn register(&mut self, world: &mut World, assets: &mut Assets<Dylib>, id: &AssetId<Dylib>) {
         let mut dynapp: DynamicApp = DynamicApp::new();
-        assets.get_mut_untracked(*id).unwrap().hook()(&mut dynapp);
+        assets.get_mut_untracked(*id).expect("no hook!").hook()(&mut dynapp);
         self.contexts.insert(*id, HashSet::new());
         self.register_systems(world, &mut dynapp, id);
     }

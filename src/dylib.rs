@@ -25,6 +25,8 @@ pub struct Dylib {
 
     /// The underlying handle of the dynamic library.
     library: Option<Library>,
+
+    path: PathBuf,
 }
 
 impl Dylib {
@@ -65,6 +67,7 @@ impl Dylib {
         Ok(Dylib {
             hook: Some(Self::get_main(&library)?),
             library: Some(library),
+            path: path.to_path_buf(),
         })
     }
 
@@ -100,6 +103,22 @@ impl Dylib {
     /// TODO:
     pub fn hook(&self) -> DynamicAppHook {
         self.hook.unwrap()
+    }
+
+    /// TODO:
+    pub fn refresh(&mut self) {
+        println!("refreshing");
+        self.library.take().unwrap().close().unwrap();
+        self.hook = None;
+        let library: Library = Self::load_library(
+            &Self::resolve_assets()
+                .unwrap()
+                .join("assets")
+                .join(&self.path),
+        )
+        .unwrap();
+        self.hook = Some(Self::get_main(&library).unwrap());
+        self.library = Some(library);
     }
 }
 
